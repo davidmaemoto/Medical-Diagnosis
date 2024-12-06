@@ -8,7 +8,7 @@ import json
 def get_state_index(asked_symptoms):
     return int("".join(map(str, asked_symptoms.astype(int))), 2)
 
-def diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_diseases, max_questions=22):
+def diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_diseases, max_questions):
     n_symptoms = len(symptoms)
     symptoms_state = np.zeros(n_symptoms, dtype=int)  # Initial symptom state (all unknown)
     asked_symptoms = np.zeros(n_symptoms, dtype=int)  # Track asked symptoms
@@ -64,13 +64,19 @@ def diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_
             total_likelihood = sum(exp_likelihoods)
             disease_probabilities = [exp_ll / total_likelihood for exp_ll in exp_likelihoods]
 
-            # Check if any disease probability exceeds 0.9
-            max_probability = max(disease_probabilities)
-            if max_probability >= 0.9:
-                predicted_disease_idx = np.argmax(disease_probabilities)
-                predicted_disease = idx_to_disease[str(predicted_disease_idx)]
-                print(f"\nPredicted Disease: {predicted_disease} (Probability: {max_probability:.2f})")
-                return predicted_disease
+            # Get top 3 diseases by probability
+            top_3_indices = np.argsort(disease_probabilities)[-3:][::-1]
+            top_3_diseases = [(idx_to_disease[str(i)], disease_probabilities[i]) for i in top_3_indices]
+
+            print("\nTop 3 Diseases:")
+            for disease, prob in top_3_diseases:
+                print(f"{disease}: Probability({prob:.2f})")
+
+            # Check if the most likely disease probability exceeds 0.9
+            if top_3_diseases[0][1] >= 0.9:
+                print(f"\nConfident Diagnosis: {top_3_diseases[0][0]} (Probability: {top_3_diseases[0][1]:.2f})")
+                return top_3_diseases
+
 
         else:  # Make a prediction (if max_questions reached or policy dictates)
             # Predict disease based on observed symptoms
@@ -96,12 +102,13 @@ def diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_
             total_likelihood = sum(exp_likelihoods)
             disease_probabilities = [exp_ll / total_likelihood for exp_ll in exp_likelihoods]
 
-            predicted_disease_idx = np.argmax(disease_probabilities)
-            predicted_disease = idx_to_disease[str(predicted_disease_idx)]
-            max_probability = disease_probabilities[predicted_disease_idx]
+            top_3_indices = np.argsort(disease_probabilities)[-3:][::-1]
+            top_3_diseases = [(idx_to_disease[str(i)], disease_probabilities[i]) for i in top_3_indices]
 
-            print(f"\nPredicted Disease: {predicted_disease} (Probability: {max_probability:.2f})")
-            return predicted_disease
+            print("\nFinal Top 3 Diseases:")
+            for disease, prob in top_3_diseases:
+                print(f"{disease}: Probability ({prob:.2f})")
+            return top_3_diseases
 
     print("Max questions reached. Unable to make a confident diagnosis.")
     return None
@@ -122,4 +129,4 @@ with open('symptoms.json', 'r') as f:
 n_diseases = len(idx_to_disease)
 
 # Diagnose a new patient
-predicted_disease = diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_diseases)
+predicted_disease = diagnose_patient(q_table, symptoms, disease_symptom_prob, idx_to_disease, n_diseases, len(symptoms))
